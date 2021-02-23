@@ -1,17 +1,17 @@
 const socket = io('/');
 const videoGrid = document.getElementById('video-grid');
 const myVideo = document.createElement('video');
-
-myVideo.muted = true;
-
-var peer = new Peer(undefined, {
+const myPeer = new Peer(undefined, {
     path: '/peerjs',
     host: '/',
-    port:'3030'
+    port:'443'
 }); 
 
+let myVideoStream;
+const myVideo = document.createElement('video')
+myVideo.muted = true;
+const peers = {}
 
-let myVideoStream
 navigator.mediaDevices.getUserMedia({
     video: true,
     audio : true
@@ -19,7 +19,7 @@ navigator.mediaDevices.getUserMedia({
     myVideoStream = stream;
     addVideoStream(myVideo,stream);
     
-    peer.on('call',call =>{
+    myPeer.on('call',call =>{
         call.answer(stream)
         const video = document.createElement('video')
         call.on('stream',userVideoStream => {
@@ -30,18 +30,37 @@ navigator.mediaDevices.getUserMedia({
     socket.on('user-connected',(userId)=>{
         connectToNewUser(userId,stream);
     })
+    let text = $("input");
+     $('html').keydown(function (e) {
+     if (e.which == 13 && text.val().length !== 0) {
+     socket.emit('message', text.val());
+     text.val('')
+    }
+  });
+    socket.on("createMessage", message => {
+    $("ul").append(`<li class="message"><b>user</b><br/>${message}</li>`);
+    scrollToBottom()
+  })
 })
 
-peer.on('open', id =>{
+socket.on('user-disconnected', userId => {
+    if (peers[userId]) peers[userId].close()
+  })
+
+myPeer.on('open', id =>{
 
     socket.emit('join-room', ROOM_ID,id);
 })
 const connectToNewUser = (userId,stream) =>{
-    const call = peer.call(userId,stream);
+    const call = myPeer.call(userId,stream);
     const video = document.createElement('video');
     call.on('stream', userVideoStream => {
         addVideoStream(video,userVideoStream);
     })
+    call.on('close', () => {
+        video.remove()
+      }) 
+      peers[userId] = call
 }
 
 const addVideoStream = (video, stream) => {
@@ -51,3 +70,9 @@ const addVideoStream = (video, stream) => {
     })
     videoGrid.append(video);
 }
+
+const scrollToBottom = () => {
+    var d = $('.main__chat_window');
+    d.scrollTop(d.prop("scrollHeight"));
+}
+
